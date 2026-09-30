@@ -28,6 +28,10 @@ jobs:
     name: Build the bundle
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Pages must be switched on once (Settings → Pages → Source: GitHub Actions) and a
+    # workflow token is not allowed to do that, so until then this job skips instead of
+    # failing. The next push after enabling it deploys the demo.
+    if: ${{ github.event.repository.has_pages == true }}
     steps:
       - uses: actions/checkout@v4
 
