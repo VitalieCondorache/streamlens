@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-type Entry = { readonly key: string; readonly value: unknown };
+interface Entry {
+  readonly key: string;
+  readonly value: unknown;
+}
 
 const toEntries = (value: unknown): readonly Entry[] | null => {
   if (Array.isArray(value)) {

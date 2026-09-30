@@ -1,0 +1,43 @@
+version: 2
+
+updates:
+  # Angular, its toolchain and the browser-test stack. Grouped so a release train
+  # arrives as one reviewable pull request instead of a dozen.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns:
+          - '@angular/*'
+          - '@angular-devkit/*'
+          - '@angular-eslint/*'
+          - angular-eslint
+          - typescript
+      testing:
+        patterns:
+          - '@playwright/*'
+          - vitest
+          - jsdom
+          - '@vitest/*'
+
+  # KafkaJS: the bridge's only real dependency, and the one that decides whether the
+  # broker keeps answering.
+  - package-ecosystem: npm
+    directory: /bff
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # Pins the broker itself: docker-compose.yml, the CI service container and the
+  # README all quote the same Kafka line.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly

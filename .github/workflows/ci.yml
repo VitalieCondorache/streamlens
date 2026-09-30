@@ -24,8 +24,19 @@ jobs:
 
       - run: npm ci
       - run: npm run format:check
-      - run: npm test -- --watch=false
+      - run: npm run lint
+      # `test:coverage` is the same suite plus the coverage gate declared in angular.json.
+      - run: npm run test:coverage
+      - run: npm run bff:test
       - run: npm run build
+
+      - name: Upload the coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
 
   e2e:
     name: End-to-end (recorded session, no backend)
@@ -40,11 +51,14 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium firefox webkit
 
       # The suite serves the production bundle and relies on the recording in
       # public/demo-stream.json, so it needs no broker, no Docker and no secrets.
+      # Firefox only runs in CI: see E2E_BROWSERS in playwright.config.ts.
       - run: npm run test:e2e
+        env:
+          E2E_BROWSERS: chromium,firefox,webkit
 
       - name: Upload the Playwright report
         if: ${{ !cancelled() }}
@@ -92,6 +106,12 @@ jobs:
         run: npm ci
         working-directory: bff
 
+      # The hub's contracts — frame format, session sanitising, the pause/drain
+      # backpressure and the buffer ceiling — hold without a broker, so they run first.
+      - name: Bridge unit tests
+        run: npm test
+        working-directory: bff
+
       # Proves the client and the broker actually speak the same protocol: admin
       # calls, a produce/consume round trip and committed offsets.
       - name: Broker smoke test
@@ -104,3 +124,91 @@ jobs:
       - name: Route smoke test
         run: npm run routes:smoke
         working-directory: bff
+
+  # The one thing the other jobs cannot see: the browser talking to a real broker. It runs
+  # the same Kafka image the compose file pins, boots the bridge and the dev server, and
+  # then asserts the claims the README makes about Kafka itself — real offsets and lag, the
+  # browser's murmur2 agreeing with the broker, and a group rewind that really rewrites the
+  # committed offsets. Engines are the local default (chromium + webkit): the deterministic
+  # suite is where the full matrix lives.
+  live:
+    name: Live path (browser to BFF to broker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      kafka:
+        image: apache/kafka:4.1.2
+        ports: ['9092:9092']
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          CLUSTER_ID: streamlens-kraft-01
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:29093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:29093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+        options: >-
+          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+          --health-interval 5s --health-timeout 5s --health-retries 24 --health-start-period 20s
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+
+      - name: Install the BFF dependencies
+        run: npm ci
+        working-directory: bff
+
+      # Everything the browser sees goes through this process, so it has to be ready first.
+      # The simulator is on by default, which is what puts records in the log for the tail.
+      # `nohup` matters: the runner starts a fresh shell per step and the process has to
+      # outlive the one that launched it.
+      - name: Start the bridge
+        working-directory: bff
+        run: |
+          nohup npm start > /tmp/bff.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf localhost:4000/api/health | grep -Eq '"connected": *true' && break
+            sleep 2
+          done
+          curl -sf localhost:4000/api/health | grep -Eq '"connected": *true' \
+            || { echo 'the bridge never reached the broker'; tail -40 /tmp/bff.log; exit 1; }
+
+      # Readiness is asserted through the dev server, not the BFF: that single request
+      # proves the proxy is wired too, which is what the browser will actually use.
+      - name: Start the dev server
+        run: |
+          nohup npx ng serve --port 4200 > /tmp/ng.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf localhost:4200/api/health | grep -Eq '"connected": *true' && break
+            sleep 2
+          done
+          curl -sf localhost:4200/api/health | grep -Eq '"connected": *true' \
+            || { echo 'the dev server (or its proxy) never came up'; tail -40 /tmp/ng.log; exit 1; }
+
+      - run: npm run test:e2e:live
+
+      - name: Bridge and dev-server logs
+        if: ${{ failure() }}
+        run: tail -50 /tmp/bff.log /tmp/ng.log
+
+      - name: Upload the Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-live
+          path: playwright-report/
+          retention-days: 7

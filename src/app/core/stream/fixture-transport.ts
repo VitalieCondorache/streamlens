@@ -43,7 +43,12 @@ export class FixtureStreamTransport implements StreamTransport {
     };
   }
 
-  async start(options: StreamOptions, sink: StreamSink): Promise<void> {
+  /**
+   * The recording is a fixed session: there is no group to join and no offsets to seek,
+   * so the stream options (topics, `fromBeginning`) do not apply — this transport always
+   * replays exactly what was captured.
+   */
+  async start(_options: StreamOptions, sink: StreamSink): Promise<void> {
     this.stop();
 
     this.sink = sink;

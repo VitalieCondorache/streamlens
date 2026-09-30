@@ -26,6 +26,9 @@ const settle = (page: Page, ms = 1_500) => page.waitForTimeout(ms);
 
 test.describe('documentation screenshots', () => {
   test.skip(process.env.SCREENSHOTS !== '1', 'set SCREENSHOTS=1 (npm run screenshots)');
+  // Captured once, in Chromium: three engines would race for the same files, and the
+  // documentation should describe one deterministic rendering.
+  test.skip(({ browserName }) => browserName !== 'chromium', 'screenshots are taken in Chromium');
 
   test('overview', async ({ page }) => {
     await open(page, '/overview');

@@ -229,7 +229,7 @@ export const createStreamHub = (bridge, logger = log) => {
         autoCommitInterval: 1_000,
         eachBatch: async ({ batch }) => {
           for (const message of batch.messages) {
-            let decoded = null;
+            let decoded;
             try {
               decoded = JSON.parse(message.value?.toString() ?? 'null');
             } catch {

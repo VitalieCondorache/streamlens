@@ -1,19 +1,41 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.E2E_PORT ?? 4173);
-const baseURL = `http://127.0.0.1:${PORT}`;
+const STATIC_URL = `http://127.0.0.1:${PORT}`;
+/**
+ * Set by `npm run test:e2e:live`: points the suite at the dev server, which proxies
+ * `/api` to the BFF, so the browser talks to a real broker. Everything else runs
+ * against the built bundle served as a static site, with no `/api` backend on the
+ * origin — deliberately, because the app then takes its recorded-session path and the
+ * suite is deterministic: no Kafka, no Docker, no network.
+ */
+const LIVE_URL = process.env.E2E_LIVE_URL;
+const baseURL = LIVE_URL ?? STATIC_URL;
+
+const desktop = (device: (typeof devices)[string]) => ({
+  ...device,
+  viewport: { width: 1440, height: 900 },
+  deviceScaleFactor: 2,
+});
 
 /**
- * End-to-end suite.
- *
- * It runs the *built* bundle (see `npm run test:e2e`) served as a static site, with no
- * `/api` backend on the origin. That is deliberate: the app then takes its recorded-session
- * path, so the suite is deterministic — no Kafka, no Docker, no network — and it still
- * exercises the lazy routes, the virtual list and the defer blocks in a real browser.
- *
- * Live mode against Docker is covered by `npm run bff:smoke` plus the unit tests; a page
- * object for it can be added the same way, pointing at the dev server instead.
+ * Engines to run on. Chromium and WebKit are the two a laptop can always launch; CI adds
+ * Firefox (`E2E_BROWSERS=chromium,firefox,webkit`), because some macOS setups refuse to
+ * start the bundled unsigned Nightly at all — Gatekeeper kills it before it can read its
+ * profile. SSE, the virtual list and the scroll anchoring are exactly the places where one
+ * engine hides a difference, so the coverage is worth the extra minute.
  */
+const ENGINES = (process.env.E2E_BROWSERS ?? 'chromium,webkit')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean);
+
+const DEVICES: Record<string, (typeof devices)[string]> = {
+  chromium: devices['Desktop Chrome'],
+  firefox: devices['Desktop Firefox'],
+  webkit: devices['Desktop Safari'],
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -38,22 +60,21 @@ export default defineConfig({
     video: 'off',
   },
 
-  projects: [
-    {
-      name: 'chromium',
-      use: {
-        ...devices['Desktop Chrome'],
-        viewport: { width: 1440, height: 900 },
-        deviceScaleFactor: 2,
-      },
-    },
-  ],
+  // The same suite on more than one engine.
+  projects: ENGINES.map((name) => {
+    const device = DEVICES[name];
+    if (!device) throw new Error(`unknown engine in E2E_BROWSERS: ${name}`);
+    return { name, use: desktop(device) };
+  }),
 
-  webServer: {
-    command: 'node e2e/static-server.mjs',
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-    stdout: 'pipe',
-  },
+  // Nothing to boot when the suite runs against the live stack.
+  webServer: LIVE_URL
+    ? undefined
+    : {
+        command: 'node e2e/static-server.mjs',
+        url: STATIC_URL,
+        reuseExistingServer: !process.env.CI,
+        timeout: 30_000,
+        stdout: 'pipe',
+      },
 });

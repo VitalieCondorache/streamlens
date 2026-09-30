@@ -11,6 +11,7 @@
   "scripts": {
     "start": "node src/server.mjs",
     "dev": "node --watch src/server.mjs",
+    "test": "node --test \"test/**/*.test.mjs\"",
     "smoke": "node scripts/smoke.mjs",
     "routes:smoke": "node scripts/routes-smoke.mjs",
     "capture": "node scripts/capture-fixture.mjs"

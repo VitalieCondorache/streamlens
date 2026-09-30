@@ -156,6 +156,11 @@ test.describe('replay mode — no backend', () => {
     await goto(page, '/tail');
     await waitForRows(page, 4);
 
+    // Clicking a row while records are being prepended is a race in every engine, and the
+    // one WebKit loses; the inspector is what is under test here, so freeze the list first.
+    await page.getByRole('button', { name: 'Pause ingest' }).click();
+    await expect(page.getByRole('status')).toContainText('Ingest is paused');
+
     const target = rows(page).nth(1);
     const key = (await target.locator('.record__key').innerText()).trim();
     await target.click();
