@@ -9,7 +9,7 @@ name: streamlens
 
 services:
   kafka:
-    image: apache/kafka:4.1.2
+    image: apache/kafka:4.3.1
     container_name: streamlens-kafka
     hostname: kafka
     ports:
