@@ -51,7 +51,7 @@ npm run stack:down    # docker compose down
 npm run stack:logs    # follow the BFF logs
 npm run bff           # run the BFF on the host instead (needs a reachable broker)
 npm test              # 58 unit tests (Vitest)
-npm run test:e2e      # 11 end-to-end tests (Playwright) against the built bundle
+npm run test:e2e      # 12 end-to-end tests (Playwright) against the built bundle
 npm run verify        # unit tests + build + end-to-end, what CI runs
 npm run format:check  # Prettier, enforced in CI
 npm run bff:smoke     # prove client ↔ broker compatibility before anything else
@@ -165,7 +165,7 @@ Three layers, each covering what the others cannot:
 
 ```
 58 unit tests        npm test            Vitest + jsdom, milliseconds
-11 end-to-end tests  npm run test:e2e    Playwright, the production bundle, a real browser
+12 end-to-end tests  npm run test:e2e    Playwright, the production bundle, a real browser
  2 smoke tests       npm run bff:smoke   the client/broker pairing, against a live broker
                      npm run bff:routes  every BFF route, booted on a spare port
 ```
