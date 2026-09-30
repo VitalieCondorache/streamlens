@@ -1,0 +1,65 @@
+name: Deploy the static demo to GitHub Pages
+
+# The app degrades gracefully: without a /api backend it replays the session in
+# public/demo-stream.json, so the same bundle becomes a live demo with no server.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'angular.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # `--base-href ./` keeps every asset URL relative, so the bundle works under
+      # https://<user>.github.io/<repo>/ without hardcoding the repository name.
+      - run: npm run build:pages
+
+      # GitHub Pages serves 404.html for unknown paths; giving it a copy of the
+      # shell keeps deep links (e.g. /tail) working instead of returning a bare 404.
+      - name: Add the SPA fallback for deep links
+        run: cp dist/streamlens/browser/index.html dist/streamlens/browser/404.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/streamlens/browser
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
