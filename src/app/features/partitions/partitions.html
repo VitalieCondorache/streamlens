@@ -1,0 +1,136 @@
+<section class="stack">
+  <header class="spread">
+    <div>
+      <h1>Partitions &amp; consumer lag</h1>
+      <p class="muted">
+        Three independent views of the same partitions: what this consumer received, where the
+        broker's log ends, and where the audit consumer group has committed.
+      </p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <app-stat-card
+      label="Partitions active"
+      [value]="activePartitions()"
+      hint="seen in the buffer"
+      tone="brand"
+    />
+    <app-stat-card
+      label="Busiest partition"
+      [value]="
+        hottestPartition() ? hottestPartition()!.topic + '/p' + hottestPartition()!.partition : '—'
+      "
+      [hint]="integer(hottestPartition()?.count ?? 0) + ' records in the buffer'"
+    />
+    <app-stat-card label="Audit group" [value]="groupId()" hint="lag source" />
+    <app-stat-card
+      label="Total lag"
+      [value]="compact(diagnostics.totalLag())"
+      [hint]="bffReachable() ? 'records behind the log end' : 'needs a live BFF'"
+      [tone]="bffReachable() ? 'neutral' : 'warn'"
+    />
+  </div>
+
+  @for (topic of topics(); track topic) {
+    <article class="card">
+      <div class="spread">
+        <h3 class="mono">{{ topic }}</h3>
+        <span class="faint mono">
+          {{ integer(topicCount(topic)) }} in buffer · {{ partitionRows(topic).length }} partitions
+        </span>
+      </div>
+
+      <table class="table">
+        <caption class="sr-only">
+          Partition detail for
+          {{
+            topic
+          }}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Partition</th>
+            <th scope="col">In buffer</th>
+            <th scope="col">Distribution</th>
+            <th scope="col">Log start</th>
+            <th scope="col">Log end</th>
+            <th scope="col">Committed</th>
+            <th scope="col">Lag</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of partitionRows(topic); track row.partition) {
+            <tr>
+              <th scope="row" class="mono">p{{ row.partition }}</th>
+              <td class="mono">{{ integer(row.buffered) }}</td>
+              <td class="distribution">
+                <span class="bar">
+                  <span class="bar__fill" [style.width.%]="row.peakShare * 100"></span>
+                </span>
+                <span class="faint mono">{{ percent(row.share) }}</span>
+              </td>
+              <td class="mono faint">{{ row.oldestOffset ?? '—' }}</td>
+              <td class="mono">{{ row.nextOffset ?? '—' }}</td>
+              <td class="mono">{{ row.committed ?? '—' }}</td>
+              <td class="mono" [class.lag--behind]="(row.lag ?? '0') !== '0'">
+                {{ row.lag ?? '—' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </article>
+  }
+
+  <div class="panels">
+    <article class="card">
+      <h3>Resume positions</h3>
+      <p class="muted">
+        The highest offset this session has seen per partition — the watermarks that make
+        re-delivered records harmless. The broker keeps the authoritative copy as the committed
+        offsets of the consumer group.
+      </p>
+
+      @if (stream.positions().length === 0) {
+        <p class="faint">No records consumed yet.</p>
+      } @else {
+        <ul class="positions">
+          @for (position of stream.positions(); track position.topic + position.partition) {
+            <li class="mono">
+              <span class="faint">{{ position.topic }}/p{{ position.partition }}</span>
+              <span>@{{ position.offset }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </article>
+
+    <article class="card">
+      <h3>Key distribution</h3>
+      <p class="muted">
+        Kafka hashes the record key to pick a partition, so one key always lands on the same one —
+        that is what preserves per-key ordering.
+      </p>
+
+      @if (stats().topKeys.length === 0) {
+        <p class="faint">No keyed records yet.</p>
+      } @else {
+        <ul class="keys">
+          @for (entry of stats().topKeys; track entry.key) {
+            <li>
+              <span class="mono">{{ entry.key }}</span>
+              <span class="bar bar--inline">
+                <span
+                  class="bar__fill"
+                  [style.width.%]="(entry.count / stats().topKeys[0].count) * 100"
+                ></span>
+              </span>
+              <span class="mono faint">{{ entry.count }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </article>
+  </div>
+</section>

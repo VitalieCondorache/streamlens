@@ -1,0 +1,254 @@
+<section class="stack">
+  <header class="spread">
+    <div>
+      <h1>Live tail</h1>
+      <p class="muted">
+        Every row is a Kafka record with its real coordinates. Filtering, pausing and rewinding all
+        happen against the stream — the list keeps the newest records in memory and renders only the
+        rows you can see.
+      </p>
+    </div>
+    <div class="row">
+      <button
+        type="button"
+        class="btn"
+        [class.btn--primary]="stream.paused()"
+        (click)="togglePause()"
+        [attr.aria-pressed]="stream.paused()"
+      >
+        {{ stream.paused() ? 'Resume ingest' : 'Pause ingest' }}
+      </button>
+      <button type="button" class="btn" [class.is-active]="follow()" (click)="toggleFollow()">
+        {{ follow() ? 'Following newest' : 'Holding position' }}
+      </button>
+      <button type="button" class="btn" (click)="clear()">Clear view</button>
+    </div>
+  </header>
+
+  @if (stream.paused()) {
+    <p class="alert" role="status">
+      Ingest is paused: records are discarded as they arrive while the consumer group keeps
+      committing offsets. {{ integer(counters().droppedWhilePaused) }} dropped so far.
+    </p>
+  }
+
+  <div class="grid">
+    <app-stat-card
+      label="Rows shown"
+      [value]="integer(rows().length)"
+      [hint]="'of ' + integer(stats().buffered) + ' buffered'"
+      tone="brand"
+    />
+    <app-stat-card label="Throughput" [value]="stream.latestRate()" unit=" rec/s" />
+    <app-stat-card
+      label="Duplicates dropped"
+      [value]="integer(counters().duplicates)"
+      hint="at-least-once delivery"
+    />
+    <app-stat-card
+      label="Missing records"
+      [value]="integer(counters().missed)"
+      [hint]="counters().missed > 0 ? 'gaps between offsets' : 'no gaps detected'"
+      [tone]="counters().missed > 0 ? 'warn' : 'ok'"
+    />
+    <app-stat-card label="Pipeline p95" [value]="duration(stats().latency.p95)" />
+    <app-stat-card
+      label="Failure share"
+      [value]="percent(stats().failureRate)"
+      [hint]="integer(stats().failures) + ' failures in the buffer'"
+      [tone]="stats().failureRate > 0.12 ? 'bad' : 'ok'"
+    />
+  </div>
+
+  <div class="toolbar card card--flat">
+    <!-- Filters: three fields on one line, the search box taking the slack. -->
+    <div class="toolbar__filters">
+      <label class="field">
+        <span class="field__label">Topic</span>
+        <select
+          class="select"
+          aria-label="Topic filter"
+          [value]="filters().topic"
+          (change)="setTopic($event)"
+        >
+          <option value="all">All topics</option>
+          @for (topic of stream.topics(); track topic) {
+            <option [value]="topic">{{ topic }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Type</span>
+        <select
+          class="select"
+          aria-label="Event type"
+          [value]="filters().type"
+          (change)="setType($event)"
+        >
+          <option value="all">All types</option>
+          @for (type of stream.types(); track type) {
+            <option [value]="type">{{ type }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Search key, type or payload</span>
+        <input
+          class="input"
+          type="search"
+          aria-label="Search records"
+          placeholder="ord-1042, payment.failed, stripe…"
+          [value]="filters().query"
+          (input)="setQuery($event)"
+        />
+      </label>
+    </div>
+
+    <!-- Actions: what the consumer group does next, kept apart from plain filtering. -->
+    <div class="toolbar__actions">
+      <div class="field">
+        <span class="field__label">Rewind consumer group</span>
+        <div class="row">
+          <select
+            class="select"
+            aria-label="Rewind depth"
+            [value]="rewindCount()"
+            (change)="setRewindCount($event)"
+          >
+            @for (option of rewindOptions; track option) {
+              <option [value]="option">last {{ option }}</option>
+            }
+          </select>
+          <select
+            class="select"
+            aria-label="Rewind topic"
+            [value]="rewindTopic()"
+            (change)="setRewindTopic($event)"
+          >
+            <option value="">first topic</option>
+            @for (topic of rewindTargets(); track topic) {
+              <option [value]="topic">{{ topic }}</option>
+            }
+          </select>
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="rewind()"
+            [disabled]="rewindBusy() || !canRewind()"
+            [title]="
+              canRewind()
+                ? 'Rewrite the committed offsets of this session and re-read the history'
+                : 'Requires a live BFF and broker'
+            "
+          >
+            {{ rewindBusy() ? 'Rewinding…' : 'Rewind' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field__label">New consumer group</span>
+        <div class="row">
+          <button type="button" class="btn" (click)="startOver(false)" [disabled]="!canRewind()">
+            from latest
+          </button>
+          <button type="button" class="btn" (click)="startOver(true)" [disabled]="!canRewind()">
+            from earliest
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="tail">
+    <article class="card card--flat tail__list">
+      <div class="spread tail__head">
+        <h3>Records</h3>
+        <span class="faint mono">
+          {{ integer(rows().length) }} matching · newest first · buffer cap
+          {{ integer(stream.bufferLimit) }}
+        </span>
+      </div>
+
+      @if (rows().length === 0) {
+        <p class="muted empty">
+          No records yet. Waiting for the first batch — or relax the filters above.
+        </p>
+      } @else {
+        <app-virtual-list
+          [items]="rows()"
+          [rowTemplate]="eventRowTemplate()"
+          [rowHeight]="34"
+          [height]="470"
+          [label]="'Kafka records, newest first: ' + rows().length + ' matching'"
+        />
+      }
+    </article>
+
+    <ng-template #eventRow let-event let-index="index">
+      <button
+        type="button"
+        class="record"
+        [class.is-selected]="selected()?.id === event.id"
+        [attr.aria-current]="selected()?.id === event.id"
+        (click)="onRowClick(event)"
+      >
+        <span class="record__index mono faint">{{ index }}</span>
+        <span class="record__time mono faint">{{ time(event) }}</span>
+        <span class="record__where mono">
+          {{ event.topic }}<span class="faint">/p{{ event.partition }}@{{ event.offset }}</span>
+        </span>
+        <span class="record__type">{{ event.type }}</span>
+        <span class="record__key mono" [class.record__key--null]="event.key === null">
+          {{ event.key ?? 'no key' }}
+        </span>
+      </button>
+    </ng-template>
+
+    @defer (when selected()) {
+      @if (selected(); as event) {
+        <aside class="card inspector" aria-live="polite">
+          <div class="spread">
+            <h3>Record inspector</h3>
+            <button type="button" class="btn" (click)="selected.set(null)">Close</button>
+          </div>
+
+          <dl class="facts">
+            <div>
+              <dt>Topic</dt>
+              <dd class="mono">{{ event.topic }}</dd>
+            </div>
+            <div>
+              <dt>Partition</dt>
+              <dd class="mono">{{ event.partition }}</dd>
+            </div>
+            <div>
+              <dt>Offset</dt>
+              <dd class="mono">{{ event.offset }}</dd>
+            </div>
+            <div>
+              <dt>Key</dt>
+              <dd class="mono">{{ event.key ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>Event time</dt>
+              <dd class="mono">{{ time(event) }}</dd>
+            </div>
+            <div>
+              <dt>Pipeline delay</dt>
+              <dd class="mono">{{ duration(event.ingestedAt - event.at) }}</dd>
+            </div>
+          </dl>
+
+          <h4 class="section-title">Payload</h4>
+          <app-json-node [value]="event.payload" [label]="event.type" />
+        </aside>
+      }
+    } @placeholder {
+      <aside class="card inspector muted">
+        Select a record to inspect its payload, partition and pipeline delay.
+      </aside>
+    }
+  </div>
+</section>

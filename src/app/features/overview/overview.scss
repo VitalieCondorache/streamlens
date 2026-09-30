@@ -1,0 +1,137 @@
+:host {
+  display: block;
+}
+
+h1 {
+  font-size: var(--step-3);
+}
+
+.panels {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+
+@media (max-width: 980px) {
+  .panels {
+    grid-template-columns: 1fr;
+  }
+}
+
+.alert {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  background: color-mix(in oklab, var(--warn) 12%, var(--surface));
+}
+
+.alert--bad {
+  border-color: var(--bad);
+  background: color-mix(in oklab, var(--bad) 12%, var(--surface));
+}
+
+.spark {
+  height: 90px;
+  margin-block: var(--space-3);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.facts dt {
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.table {
+  width: 100%;
+  margin-top: var(--space-4);
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: start;
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table th {
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 500;
+}
+
+.share {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.bar {
+  display: block;
+  flex: 1;
+  height: 6px;
+  min-width: 60px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  transition: width 200ms ease;
+}
+
+.notices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notice {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border-left: 3px solid var(--border);
+}
+
+.notice--info {
+  border-left-color: var(--brand);
+}
+.notice--warn {
+  border-left-color: var(--warn);
+}
+.notice--error {
+  border-left-color: var(--bad);
+}
+
+.btn.is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+}

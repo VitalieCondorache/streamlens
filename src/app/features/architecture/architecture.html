@@ -1,0 +1,147 @@
+<section class="stack">
+  <header>
+    <h1>How it works</h1>
+    <p class="muted">
+      Four moving parts, one goal: watch a real Kafka topic from a browser without pretending the
+      browser can speak Kafka.
+    </p>
+  </header>
+
+  <article class="card">
+    <h2>Topology</h2>
+    <ol class="flow" aria-label="Data flow from the broker to the browser">
+      <li class="flow__node">
+        <strong>Kafka 4.1 (KRaft)</strong>
+        <span class="faint">docker compose, one node, topics declared by the BFF</span>
+      </li>
+      <li class="flow__arrow" aria-hidden="true">→ consume · produce</li>
+      <li class="flow__node">
+        <strong>Node BFF</strong>
+        <span class="faint">kafkajs · admin API · SSE fan-out · traffic generator</span>
+      </li>
+      <li class="flow__arrow" aria-hidden="true">→ Server-Sent Events</li>
+      <li class="flow__node">
+        <strong>Angular 22</strong>
+        <span class="faint">signals store · virtual list · hand-rolled murmur2</span>
+      </li>
+    </ol>
+    <p class="muted">
+      A browser cannot open a Kafka connection: the protocol is binary over TCP and Kafka's security
+      model assumes trusted clients. So the browser talks HTTP and the BFF owns the consumer groups.
+    </p>
+  </article>
+
+  <div class="columns">
+    <article class="card">
+      <h2>Decisions</h2>
+      <dl class="decisions">
+        <dt>SSE instead of WebSocket</dt>
+        <dd>
+          The flow is strictly server → browser, so a unidirectional stream is enough. It survives
+          proxies, and <span class="mono">EventSource</span> reconnects on its own.
+        </dd>
+
+        <dt>Consumer group per browser session</dt>
+        <dd>
+          The group id is <span class="mono">streamlens-ui-&lt;sessionId&gt;</span>, stored in
+          localStorage. Committed offsets <em>are</em> the resume point: a page refresh continues
+          where the last one stopped, with no custom bookkeeping.
+        </dd>
+
+        <dt>Deduplication by watermark, not by hope</dt>
+        <dd>
+          At-least-once delivery means a reconnect can re-deliver records. The client keeps the
+          highest offset per partition, counts the duplicates it drops and the gaps it finds, and
+          shows both.
+        </dd>
+
+        <dt>Batching + real backpressure</dt>
+        <dd>
+          The BFF flushes frames every 120 ms and pauses its consumer when
+          <span class="mono">res.write()</span> reports a full socket, resuming on
+          <span class="mono">drain</span>. In the browser, frames are coalesced per animation frame.
+        </dd>
+
+        <dt>Rewinding is an offset rewrite</dt>
+        <dd>
+          "Replay the last N records" is <span class="mono">setOffsets</span> on the session's
+          group, then a reconnect. No history is kept in the frontend to fake it.
+        </dd>
+
+        <dt>Recorded fallback</dt>
+        <dd>
+          When no BFF is reachable the app replays a session captured from a real broker (<span
+            class="mono"
+            >npm run capture</span
+          >), so the deployed demo runs without infrastructure while still showing genuine records,
+          keys and partitions.
+        </dd>
+      </dl>
+    </article>
+
+    <article class="card">
+      <h2>Where to look</h2>
+      <table class="table">
+        <caption class="sr-only">
+          Source map
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">File</th>
+            <th scope="col">Responsibility</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">bff/src/stream.mjs</td>
+            <td>SSE hub: resume, batching, backpressure, per-session consumer</td>
+          </tr>
+          <tr>
+            <td class="mono">bff/src/kafka.mjs</td>
+            <td>Admin client, partition probe, group lag, offset rewrites</td>
+          </tr>
+          <tr>
+            <td class="mono">src/app/core/stream/stream-store.ts</td>
+            <td>Signal store: buffer, filters, counters, transport wiring</td>
+          </tr>
+          <tr>
+            <td class="mono">src/app/core/kafka/partitioning.ts</td>
+            <td>murmur2 + toPositive, verified against Apache Kafka's own test vectors</td>
+          </tr>
+          <tr>
+            <td class="mono">src/app/shared/ui/virtual-list</td>
+            <td>Windowed rendering with scroll anchoring</td>
+          </tr>
+          <tr>
+            <td class="mono">bff/scripts/smoke.mjs</td>
+            <td>Proves the client/broker pairing before anything else runs</td>
+          </tr>
+          <tr>
+            <td class="mono">e2e/demo-mode.spec.ts</td>
+            <td>Playwright: the product without a backend, axe-core included</td>
+          </tr>
+        </tbody>
+      </table>
+    </article>
+  </div>
+
+  <article class="card">
+    <h2>Running it</h2>
+    <pre class="shell"><code># 1. broker (Kafka, KRaft single node) and the BFF
+docker compose up -d
+
+# 2. the Angular app, proxying /api to the BFF
+npm install &amp;&amp; npm start        # http://localhost:4200
+
+# optional: re-record the offline fixture from live traffic
+cd bff &amp;&amp; npm run capture</code></pre>
+    <p class="faint">
+      Tests: <span class="mono">npm test</span> (Vitest) covers the murmur2 vectors, the watermark
+      deduplication, the statistics and the frame batcher.
+      <span class="mono">npm run test:e2e</span> drives the built bundle in a real browser with no
+      backend — lazy routes, virtual list, theme and WCAG checks. Against infrastructure:
+      <span class="mono">cd bff &amp;&amp; npm run smoke</span> for the broker pairing and
+      <span class="mono">npm run routes:smoke</span> for every HTTP route.
+    </p>
+  </article>
+</section>

@@ -1,0 +1,255 @@
+<section class="stack">
+  <header class="spread">
+    <div>
+      <h1>Stream overview</h1>
+      <p class="muted">
+        Every number below is computed in the browser from the records the consumer delivered —
+        nothing is polled from a metrics database.
+      </p>
+    </div>
+    <a class="btn" routerLink="/architecture">How it works →</a>
+  </header>
+
+  @if (alerting()) {
+    <p class="alert" role="status">
+      <strong>Failure burst detected.</strong> {{ alertText() }}
+      @if (burst()) {
+        <span> The generator is in a burst window right now.</span>
+      }
+    </p>
+  }
+
+  <div class="grid">
+    <app-stat-card
+      label="Throughput"
+      [value]="stream.latestRate()"
+      unit=" rec/s"
+      hint="accepted in the last second"
+      tone="brand"
+    />
+    <app-stat-card
+      label="Buffered"
+      [value]="integer(stats().buffered)"
+      [hint]="stream.bufferFull() ? 'buffer full, oldest rows dropped' : 'records held in memory'"
+    />
+    <app-stat-card
+      label="Failure share"
+      [value]="percent(stats().failureRate)"
+      [hint]="integer(stats().failures) + ' failed records'"
+      [tone]="alerting() ? 'bad' : 'ok'"
+    />
+    <app-stat-card
+      label="Pipeline p95"
+      [value]="duration(stats().latency.p95)"
+      hint="producer timestamp → BFF"
+    />
+    <app-stat-card
+      label="Consumer lag"
+      [value]="compact(diagnostics.totalLag())"
+      [hint]="
+        bffReachable() ? 'group ' + (diagnostics.lag.value()?.groupId ?? '') : 'needs a live BFF'
+      "
+      [tone]="bffReachable() ? 'neutral' : 'warn'"
+    />
+    <app-stat-card
+      label="Partitions seen"
+      [value]="partitionsInUse()"
+      [hint]="stream.topics().length + ' topics in the buffer'"
+    />
+  </div>
+
+  <div class="panels">
+    <article class="card">
+      <div class="spread">
+        <h3>Records per second</h3>
+        <span class="faint mono">{{ stream.rates().length }} samples</span>
+      </div>
+      <div class="spark">
+        <app-sparkline [values]="stream.rate()" label="Records per second" />
+      </div>
+      <p class="faint">
+        Sampled once per second by the store. Frames are batched per animation frame, so a burst of
+        records costs one change-detection pass instead of one per record.
+      </p>
+    </article>
+
+    <article class="card stack">
+      <div class="spread">
+        <h3>Traffic generator</h3>
+        @if (burst()) {
+          <span class="pill pill--warn">burst</span>
+        }
+      </div>
+
+      @if (bffReachable()) {
+        <p class="muted">
+          Producing {{ diagnostics.simulator()?.ratePerSecond ?? 0 }} records/s through the same
+          producer the BFF uses. {{ integer(diagnostics.simulator()?.produced ?? 0) }} produced,
+          {{ integer(diagnostics.simulator()?.failed ?? 0) }} failed sends.
+        </p>
+        <div class="row">
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="toggleGenerator()"
+            [disabled]="diagnostics.busy()"
+          >
+            {{ generatorRunning() ? 'Stop producing' : 'Start producing' }}
+          </button>
+          @for (option of rateOptions; track option) {
+            <button
+              type="button"
+              class="btn"
+              [class.is-active]="rates() === option"
+              (click)="applyRate(option)"
+              [disabled]="diagnostics.busy()"
+            >
+              {{ option }}/s
+            </button>
+          }
+        </div>
+        @if (diagnostics.actionError(); as error) {
+          <p class="alert alert--bad">{{ error }}</p>
+        }
+      } @else {
+        <p class="muted">
+          No BFF reachable, so the app is replaying a session recorded from a real broker. Run
+          <span class="mono">docker compose up -d</span> plus <span class="mono">npm start</span> in
+          <span class="mono">bff/</span> to produce live traffic again, then press Reconnect.
+        </p>
+      }
+    </article>
+  </div>
+
+  <div class="panels">
+    <article class="card">
+      <h3>Broker</h3>
+      @if (diagnostics.broker(); as broker) {
+        <dl class="facts">
+          <div>
+            <dt>Cluster</dt>
+            <dd class="mono">{{ broker.clusterId ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Brokers</dt>
+            <dd class="mono">{{ broker.brokers.join(', ') }}</dd>
+          </div>
+          <div>
+            <dt>Controller</dt>
+            <dd class="mono">{{ broker.controllerId ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Open SSE sessions</dt>
+            <dd class="mono">{{ sessionCounters() }}</dd>
+          </div>
+        </dl>
+
+        <table class="table">
+          <caption class="sr-only">
+            Topic metadata reported by the broker
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Topic</th>
+              <th scope="col">Partitions</th>
+              <th scope="col">In buffer</th>
+              <th scope="col">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (topic of diagnostics.topicMetadata(); track topic.name) {
+              <tr>
+                <td class="mono">{{ topic.name }}</td>
+                <td class="mono">{{ topic.partitions.length }}</td>
+                <td class="mono">{{ integer(topicCount(topic.name)) }}</td>
+                <td class="share">
+                  <span class="bar">
+                    <span class="bar__fill" [style.width.%]="topicShare(topic.name) * 100"></span>
+                  </span>
+                  <span class="faint mono">{{ percent(topicShare(topic.name)) }}</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      } @else {
+        <p class="muted">
+          Broker metadata is unavailable while replaying. The recording in
+          <span class="mono">public/demo-stream.json</span> came from a real broker though, so the
+          records, keys and partitions are genuine data.
+        </p>
+      }
+    </article>
+
+    <article class="card stack">
+      <div class="spread">
+        <h3>Session</h3>
+        <span class="mono faint">{{ stream.transportKind() ?? '—' }} transport</span>
+      </div>
+
+      <dl class="facts">
+        <div>
+          <dt>Consumer group</dt>
+          <dd class="mono">{{ stream.ready()?.groupId ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Started from</dt>
+          <dd class="mono">{{ stream.ready()?.fromBeginning ? 'earliest' : 'latest' }}</dd>
+        </div>
+        <div>
+          <dt>Accepted</dt>
+          <dd class="mono">{{ integer(counters().accepted) }}</dd>
+        </div>
+        <div>
+          <dt>Duplicates / late</dt>
+          <dd class="mono">
+            {{ integer(counters().duplicates) }} / {{ integer(counters().late) }}
+          </dd>
+        </div>
+        <div>
+          <dt>Missing</dt>
+          <dd class="mono">{{ integer(counters().missed) }}</dd>
+        </div>
+        <div>
+          <dt>Dropped while paused</dt>
+          <dd class="mono">{{ integer(counters().droppedWhilePaused) }}</dd>
+        </div>
+      </dl>
+
+      <p class="faint">
+        Duplicates are expected: Kafka delivers at least once, and the client deduplicates with
+        per-partition watermarks while the group
+        <span class="mono">streamlens-ui-{{ stream.sessionId() }}</span> keeps the committed
+        position on the broker.
+      </p>
+    </article>
+  </div>
+
+  <article class="card stack">
+    <div class="spread">
+      <h3>Transport notices</h3>
+      @if (stream.notices().length > 4) {
+        <button type="button" class="btn" (click)="showAllNotices.set(!showAllNotices())">
+          {{ showAllNotices() ? 'Show less' : 'Show all ' + stream.notices().length }}
+        </button>
+      }
+    </div>
+
+    @if (visibleNotices().length === 0) {
+      <p class="muted">Nothing to report yet.</p>
+    } @else {
+      <ul class="notices">
+        @for (notice of visibleNotices(); track notice.at + notice.code) {
+          <li class="notice" [class]="'notice--' + notice.level">
+            <span class="mono faint">{{ timeOfDay(notice.at) }}</span>
+            <span class="pill mono">{{ notice.code }}</span>
+            <span>{{ notice.message }}</span>
+            @if (notice.assignment; as assignment) {
+              <span class="mono faint">{{ assignmentLabel(assignment) }}</span>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </article>
+</section>

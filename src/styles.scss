@@ -1,1 +1,262 @@
-/* You can add global styles to this file, and also import other style files */
+/* ─────────────────────────────────────────────────────────────────────────────
+   StreamLens — design tokens.
+
+   One place to change the look: every component reads these variables, which is
+   why the light/dark switch is a single attribute on <html> instead of a
+   duplicated stylesheet.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+
+  --brand: oklch(72% 0.14 205);
+  --brand-strong: oklch(64% 0.15 205);
+  --ok: oklch(74% 0.16 150);
+  --warn: oklch(80% 0.15 85);
+  --bad: oklch(68% 0.18 25);
+}
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: oklch(21% 0.02 250);
+  --bg-grid: oklch(24% 0.02 250 / 0.5);
+  --surface: oklch(25% 0.02 250);
+  --surface-2: oklch(29% 0.02 250);
+  --surface-3: oklch(33% 0.02 250);
+  --border: oklch(38% 0.02 250);
+  --text: oklch(96% 0.01 250);
+  /* Both muted tones stay above WCAG AA (4.5:1) on every surface above;
+     the axe check in the e2e suite is what keeps them honest. */
+  --text-muted: oklch(82% 0.02 250);
+  --text-faint: oklch(74% 0.02 250);
+  --shadow: 0 10px 30px oklch(10% 0.02 250 / 0.45);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg: oklch(98% 0.005 250);
+  --bg-grid: oklch(92% 0.01 250 / 0.6);
+  --surface: oklch(100% 0 0);
+  --surface-2: oklch(97% 0.005 250);
+  --surface-3: oklch(94% 0.008 250);
+  --border: oklch(88% 0.01 250);
+  --text: oklch(24% 0.02 250);
+  --text-muted: oklch(44% 0.02 250);
+  --text-faint: oklch(50% 0.02 250);
+  --shadow: 0 10px 30px oklch(60% 0.03 250 / 0.18);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-grid) 1px, transparent 0);
+  background-size: 22px 22px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--step-0);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: var(--step-3);
+}
+h2 {
+  font-size: var(--step-2);
+}
+h3 {
+  font-size: var(--step-1);
+}
+
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+/* ── primitives ─────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  box-shadow: var(--shadow);
+}
+
+.card--flat {
+  box-shadow: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.faint {
+  color: var(--text-faint);
+}
+
+.section-title {
+  font-size: var(--step--1);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin-bottom: var(--space-3);
+}
+
+/* ── controls ───────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--brand);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--brand);
+  border-color: var(--brand-strong);
+  color: oklch(20% 0.03 250);
+  font-weight: 600;
+}
+
+.btn--danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.input,
+.select {
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  min-width: 0;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: var(--step--1);
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

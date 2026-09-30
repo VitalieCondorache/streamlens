@@ -1,0 +1,152 @@
+<section class="stack">
+  <header class="spread">
+    <div>
+      <h1>Key router</h1>
+      <p class="muted">
+        Kafka picks a partition with
+        <span class="mono">toPositive(murmur2(key)) % partitions</span>. This page runs the same
+        algorithm in the browser — and then asks the broker where those keys really landed.
+      </p>
+    </div>
+  </header>
+
+  <div class="grid">
+    <app-stat-card
+      label="Keys checked"
+      [value]="keys().length"
+      hint="up to 24 per request"
+      tone="brand"
+    />
+    <app-stat-card
+      label="Partitions in play"
+      [value]="effectivePartitions()"
+      [hint]="
+        overriding()
+          ? 'manual override (' + partitionSource() + ': ' + brokerPartitions() + ')'
+          : partitionSource()
+      "
+      [tone]="overriding() ? 'warn' : 'neutral'"
+    />
+    <app-stat-card
+      label="Agreement"
+      [value]="matched() + ' / ' + compared()"
+      [hint]="verdictHint()"
+      [tone]="verdict() === 'exact' ? 'ok' : verdict() === 'mismatch' ? 'bad' : 'neutral'"
+    />
+  </div>
+
+  <article class="card stack card--flat">
+    <div class="toolbar">
+      <label class="field">
+        <span class="field__label">Topic</span>
+        <select class="select" [value]="selectedTopic()" (change)="setTopic($event)">
+          @for (topic of topics(); track topic) {
+            <option [value]="topic">{{ topic }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Partitions used for the prediction</span>
+        <select class="select" [value]="override().toString()" (change)="setOverride($event)">
+          <option value="0">broker default ({{ brokerPartitions() }})</option>
+          @for (count of [1, 2, 3, 4, 6, 8, 12, 16]; track count) {
+            <option [value]="count.toString()">{{ count }}</option>
+          }
+        </select>
+      </label>
+
+      <div class="field field--grow">
+        <span class="field__label">Keys (comma, space or newline separated)</span>
+        <textarea
+          class="input textarea"
+          rows="2"
+          [value]="input()"
+          (input)="updateInput($event)"
+        ></textarea>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Actions</span>
+        <div class="row">
+          <button type="button" class="btn" (click)="shuffle()">Shuffle keys</button>
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="verify()"
+            [disabled]="verifying()"
+          >
+            {{
+              verifying() ? 'Asking…' : canAskBroker() ? 'Ask the broker' : 'Check the recording'
+            }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    @if (overriding()) {
+      <p class="alert">
+        The prediction uses {{ effectivePartitions() }} partitions while the broker has
+        {{ brokerPartitions() }}. Mismatches are expected — this is how the modulo changes the
+        mapping.
+      </p>
+    }
+
+    @if (error(); as message) {
+      <p class="alert alert--bad">{{ message }}</p>
+    }
+  </article>
+
+  <article class="card">
+    <div class="spread">
+      <h3>Prediction vs reality</h3>
+      @if (source(); as origin) {
+        <span class="pill" [class.pill--ok]="origin === 'broker'">
+          {{
+            origin === 'broker' ? 'verified against the broker' : 'verified against the recording'
+          }}
+        </span>
+      }
+    </div>
+
+    <table class="table">
+      <caption class="sr-only">
+        Predicted and observed partition per key
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">Key</th>
+          <th scope="col">murmur2</th>
+          <th scope="col">Predicted partition</th>
+          <th scope="col">Actual partition</th>
+          <th scope="col">Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.key) {
+          <tr>
+            <td class="mono">{{ row.key }}</td>
+            <td class="mono faint">{{ row.hash }}</td>
+            <td class="mono">p{{ row.partition }}</td>
+            <td class="mono">{{ row.actual === null ? '—' : 'p' + row.actual }}</td>
+            <td>
+              @if (row.match === null) {
+                <span class="faint">not checked</span>
+              } @else if (row.match) {
+                <span class="verdict verdict--ok">match</span>
+              } @else {
+                <span class="verdict verdict--bad">mismatch</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+
+    <p class="faint">
+      The broker probe produces into a throwaway topic with the same key, reads it back from offset
+      0 and reports the partition the record actually got. Produce metadata cannot answer this: it
+      is returned per batch, not per message.
+    </p>
+  </article>
+</section>

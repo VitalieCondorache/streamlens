@@ -1,12 +1,56 @@
 {
   "name": "streamlens",
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Kafka, observed from the browser: an Angular 22 dashboard over a Node SSE bridge to a real Kafka 4.1 broker — live tail, partitions, consumer lag, offset replay and key partitioning.",
+  "license": "MIT",
+  "author": "Vitalie Condor",
+  "homepage": "https://VitalieCondorache.github.io/streamlens/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VitalieCondorache/streamlens.git"
+  },
+  "bugs": {
+    "url": "https://github.com/VitalieCondorache/streamlens/issues"
+  },
+  "keywords": [
+    "angular",
+    "angular-signals",
+    "zoneless",
+    "kafka",
+    "kafkajs",
+    "server-sent-events",
+    "consumer-lag",
+    "offset-replay",
+    "murmur2",
+    "docker-compose",
+    "playwright",
+    "vitest"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:pages": "ng build --base-href ./",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:headed": "npm run build && playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "screenshots": "npm run build && SCREENSHOTS=1 playwright test e2e/screenshots.spec.ts",
+    "screenshots:live": "SCREENSHOTS=1 E2E_LIVE_URL=http://localhost:4200 playwright test e2e/screenshots.spec.ts",
+    "verify": "npm test -- --watch=false && npm run build && npm run test:e2e",
+    "format": "prettier --write \"src/**/*.{ts,html,scss}\" \"bff/**/*.mjs\" \"e2e/**/*.ts\" playwright.config.ts",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss}\" \"bff/**/*.mjs\" \"e2e/**/*.ts\" playwright.config.ts",
+    "bff": "npm --prefix bff start",
+    "bff:smoke": "npm --prefix bff run smoke",
+    "bff:routes": "npm --prefix bff run routes:smoke",
+    "capture": "npm --prefix bff run capture",
+    "stack:up": "docker compose up -d",
+    "stack:down": "docker compose down",
+    "stack:logs": "docker compose logs -f bff"
   },
   "private": true,
   "packageManager": "npm@11.13.0",
@@ -24,6 +68,8 @@
     "@angular/build": "^22.1.1",
     "@angular/cli": "^22.1.1",
     "@angular/compiler-cli": "^22.1.0",
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",

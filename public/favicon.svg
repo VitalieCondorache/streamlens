@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="StreamLens">
+  <rect width="64" height="64" rx="14" fill="#12222b" />
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#4cb8de" stroke-width="4" opacity="0.45" />
+  <circle cx="32" cy="32" r="12" fill="none" stroke="#4cb8de" stroke-width="4" />
+  <circle cx="32" cy="32" r="4.5" fill="#8fe0f5" />
+</svg>
