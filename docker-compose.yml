@@ -1,0 +1,64 @@
+# StreamLens — local Kafka stack
+#
+#   docker compose up -d      -> Kafka broker on localhost:9092, BFF on localhost:4000
+#   npm start                 -> Angular dev server on localhost:4200 (proxies /api to the BFF)
+#
+# The broker is a single KRaft process (broker + controller in one), which is the
+# current recommended replacement for the old ZooKeeper topology.
+name: streamlens
+
+services:
+  kafka:
+    image: apache/kafka:4.1.2
+    container_name: streamlens-kafka
+    hostname: kafka
+    ports:
+      - '${KAFKA_PORT:-9092}:9092'
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: streamlens-kraft-01
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://:19092,CONTROLLER://:29093,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # single node friendly defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 12
+      # topics are declared explicitly through the admin API by the BFF,
+      # so that partition counts are deterministic (see bff/src/config.mjs)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        ['CMD-SHELL', '/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    restart: unless-stopped
+
+  bff:
+    build: ./bff
+    container_name: streamlens-bff
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - '${BFF_PORT:-4000}:4000'
+    environment:
+      KAFKA_BROKERS: kafka:19092
+      PORT: 4000
+      SIMULATOR_ENABLED: 'true'
+      SIMULATOR_RATE: '14'
+    restart: unless-stopped
+
+volumes:
+  kafka-data:

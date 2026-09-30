@@ -1,15 +1,20 @@
 {
-  "name": "bff",
+  "name": "streamlens-bff",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "private": true,
+  "description": "Backend-for-frontend that bridges Kafka to the StreamLens Angular UI over Server-Sent Events.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "routes:smoke": "node scripts/routes-smoke.mjs",
+    "capture": "node scripts/capture-fixture.mjs"
+  },
   "dependencies": {
     "kafkajs": "^2.2.4"
   }
