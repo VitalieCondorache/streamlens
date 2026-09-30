@@ -51,7 +51,7 @@ jobs:
       - name: Add the SPA fallback for deep links
         run: cp dist/streamlens/browser/index.html dist/streamlens/browser/404.html
 
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v3
         with:
