@@ -7,6 +7,6 @@
 *.jpg binary
 *.woff2 binary
 
-# Generated files: hide the recording and the lockfile diff from the UI/stats.
-/public/demo-stream.json linguist-generated=true -diff
-package-lock.json linguist-generated=true -diff
+# Generated files: keep them out of the language stats, but stay reviewable.
+/public/demo-stream.json linguist-generated=true
+package-lock.json linguist-generated=true
