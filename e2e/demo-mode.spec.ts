@@ -99,12 +99,57 @@ test.describe('replay mode — no backend', () => {
     expect(rendered).toBeLessThan(total);
     expect(rendered).toBeLessThanOrEqual(32);
 
+    // Pause first. While ingest runs, follow mode keeps pulling the viewport back to the
+    // newest row, so a scroll-to-the-end assertion would race the next batch.
+    await page.getByRole('button', { name: 'Pause ingest' }).click();
+    await expect(page.getByRole('status')).toContainText('Ingest is paused');
+
     // Scrolling to the end reaches records far from the top without growing the DOM.
     await page.locator('.viewport').evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
     await expect(rows(page).first().locator('.record__index')).not.toHaveText('0');
     expect(await rows(page).count()).toBeLessThanOrEqual(32);
+  });
+
+  test('holds the reader position while new records are prepended', async ({ page }) => {
+    await goto(page, '/tail');
+    await waitForRows(page, 20);
+
+    // Stop following, then park the viewport in the middle of the buffer.
+    await page.getByRole('button', { name: 'Following newest' }).click();
+    await expect(page.getByRole('button', { name: 'Holding position' })).toBeVisible();
+    await page.locator('.viewport').evaluate((element) => {
+      element.scrollTop = 220;
+    });
+
+    /** Where a record sits inside the viewport, found by its Kafka coordinates. */
+    const offsetOf = (coordinates: string) =>
+      page.evaluate((wanted) => {
+        const list = document.querySelector('.viewport');
+        if (!list) return null;
+        const top = list.getBoundingClientRect().top;
+        const row = [...list.querySelectorAll('button.record')].find(
+          (candidate) =>
+            candidate.querySelector('.record__where')?.textContent?.replace(/\s+/g, '') === wanted,
+        );
+        return row ? Math.round(row.getBoundingClientRect().top - top) : null;
+      }, coordinates);
+
+    const anchor = (await rows(page).nth(1).locator('.record__where').innerText()).replace(
+      /\s+/g,
+      '',
+    );
+    const before = await offsetOf(anchor);
+    expect(before).not.toBeNull();
+
+    // Records keep arriving at the top; the buffer grows while the anchor must not move.
+    const shown = await rowsShown(page);
+    await expect.poll(() => rowsShown(page), { timeout: 20_000 }).toBeGreaterThan(shown + 3);
+
+    const after = await offsetOf(anchor);
+    expect(after).not.toBeNull();
+    expect(Math.abs((after ?? 0) - (before ?? 0))).toBeLessThanOrEqual(2);
   });
 
   test('opens the record inspector for a row', async ({ page }) => {
