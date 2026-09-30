@@ -217,7 +217,7 @@ test.describe('the rest of the product', () => {
   });
 
   test('navigates every lazy route without a runtime error', async ({ page }) => {
-    const errors = collectConsoleErrors(page);
+    const errors = await collectConsoleErrors(page);
     await goto(page, '/overview');
 
     for (const name of [
@@ -231,7 +231,7 @@ test.describe('the rest of the product', () => {
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     }
 
-    expect(errors).toEqual([]);
+    expect(await errors()).toEqual([]);
   });
 
   test('has no detectable WCAG A/AA violations on the shell and the tail', async ({ page }) => {
