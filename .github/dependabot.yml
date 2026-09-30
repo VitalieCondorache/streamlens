@@ -22,6 +22,15 @@ updates:
           - vitest
           - jsdom
           - '@vitest/*'
+      # Everything else lands in one pull request instead of one per package.
+      dev-tooling:
+        patterns:
+          - '*'
+    ignore:
+      # TypeScript majors ride the Angular release train: bump them together, by hand,
+      # because the compiler is pinned to the framework's supported range.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   # KafkaJS: the bridge's only real dependency, and the one that decides whether the
   # broker keeps answering.
@@ -34,6 +43,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
 
   # Pins the broker itself: docker-compose.yml, the CI service container and the
   # README all quote the same Kafka line.
