@@ -1,0 +1,12 @@
+# Normalise line endings across platforms; the repo is authored on macOS.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.ico binary
+*.jpg binary
+*.woff2 binary
+
+# Generated files: hide the recording and the lockfile diff from the UI/stats.
+/public/demo-stream.json linguist-generated=true -diff
+package-lock.json linguist-generated=true -diff
